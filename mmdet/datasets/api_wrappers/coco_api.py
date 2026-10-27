@@ -69,6 +69,12 @@ class COCOPanoptic(COCO):
         # anns stores 'segment_id -> annotation'
         anns, cats, imgs = {}, {}, {}
         img_to_anns, cat_to_imgs = defaultdict(list), defaultdict(list)
+
+        # Index images first so annotation loops can attach segm_file.
+        if 'images' in self.dataset:
+            for img_info in self.dataset['images']:
+                imgs[img_info['id']] = img_info
+
         if 'annotations' in self.dataset:
             for ann in self.dataset['annotations']:
                 for seg_ann in ann['segments_info']:
@@ -82,18 +88,14 @@ class COCOPanoptic(COCO):
                         anns[seg_ann['id']].append(seg_ann)
                     else:
                         anns[seg_ann['id']] = [seg_ann]
+                # Prefer annotation file_name over jpg->png rewrite.
+                imgs[ann['image_id']]['segm_file'] = ann['file_name']
 
             # filter out annotations from other images
             img_to_anns_ = defaultdict(list)
             for k, v in img_to_anns.items():
                 img_to_anns_[k] = [x for x in v if x['image_id'] == k]
             img_to_anns = img_to_anns_
-
-        if 'images' in self.dataset:
-            for img_info in self.dataset['images']:
-                img_info['segm_file'] = img_info['file_name'].replace(
-                    '.jpg', '.png')
-                imgs[img_info['id']] = img_info
 
         if 'categories' in self.dataset:
             for cat in self.dataset['categories']:

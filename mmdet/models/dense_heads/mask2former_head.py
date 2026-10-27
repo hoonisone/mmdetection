@@ -214,15 +214,21 @@ class Mask2FormerHead(MaskFormerHead):
             gt_masks.unsqueeze(1).float(), point_coords.repeat(num_gts, 1,
                                                                1)).squeeze(1)
 
+        # Keep assignment costs in FP32 under AMP.
+        cls_score_fp32 = cls_score.float()
+        mask_points_pred_fp32 = mask_points_pred.float()
+        gt_points_masks_fp32 = gt_points_masks.float()
+
         sampled_gt_instances = InstanceData(
-            labels=gt_labels, masks=gt_points_masks)
+            labels=gt_labels, masks=gt_points_masks_fp32)
         sampled_pred_instances = InstanceData(
-            scores=cls_score, masks=mask_points_pred)
+            scores=cls_score_fp32, masks=mask_points_pred_fp32)
         # assign and sample
-        assign_result = self.assigner.assign(
-            pred_instances=sampled_pred_instances,
-            gt_instances=sampled_gt_instances,
-            img_meta=img_meta)
+        with torch.cuda.amp.autocast(enabled=False):
+            assign_result = self.assigner.assign(
+                pred_instances=sampled_pred_instances,
+                gt_instances=sampled_gt_instances,
+                img_meta=img_meta)
         pred_instances = InstanceData(scores=cls_score, masks=mask_pred)
         sampling_result = self.sampler.sample(
             assign_result=assign_result,
